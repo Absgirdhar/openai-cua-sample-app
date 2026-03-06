@@ -4,7 +4,7 @@ services:
     name: cua-runner
     runtime: node
     region: oregon
-    plan: standard
+    plan: free
     buildCommand: corepack enable && pnpm install --frozen-lockfile && pnpm build:render:runner
     startCommand: pnpm start:render:runner
     envVars:
@@ -24,7 +24,7 @@ services:
     name: cua-web
     runtime: node
     region: oregon
-    plan: starter
+    plan: free
     buildCommand: corepack enable && pnpm install --frozen-lockfile && pnpm build:render:web
     startCommand: pnpm start:render:web
     envVars:
