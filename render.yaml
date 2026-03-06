@@ -4,22 +4,14 @@ services:
     name: cua-runner
     runtime: node
     region: oregon
-    plan: free
-    buildCommand: >-
-      corepack enable &&
-      pnpm install --frozen-lockfile &&
-      pnpm --filter @cua-sample/replay-schema build &&
-      pnpm --filter @cua-sample/scenario-kit build &&
-      pnpm --filter @cua-sample/browser-runtime build &&
-      pnpm --filter @cua-sample/runner-core build &&
-      pnpm --filter @cua-sample/runner build &&
-      PLAYWRIGHT_BROWSERS_PATH=0 pnpm --filter @cua-sample/runner exec playwright install chromium
-    startCommand: HOST=0.0.0.0 PLAYWRIGHT_BROWSERS_PATH=0 pnpm --filter @cua-sample/runner start
+    plan: standard
+    buildCommand: corepack enable && pnpm install --frozen-lockfile && pnpm build:render:runner
+    startCommand: pnpm start:render:runner
     envVars:
       - key: NODE_VERSION
         value: 22.20.0
       - key: OPENAI_API_KEY
-        sync: false
+        sync: false # prompted at deploy time
       - key: PORT
         value: 4001
       - key: CUA_DEFAULT_MODEL
@@ -32,13 +24,9 @@ services:
     name: cua-web
     runtime: node
     region: oregon
-    plan: free
-    buildCommand: >-
-      corepack enable &&
-      pnpm install --frozen-lockfile &&
-      pnpm --filter @cua-sample/replay-schema build &&
-      pnpm --filter @cua-sample/demo-web build
-    startCommand: pnpm --filter @cua-sample/demo-web start
+    plan: starter
+    buildCommand: corepack enable && pnpm install --frozen-lockfile && pnpm build:render:web
+    startCommand: pnpm start:render:web
     envVars:
       - key: NODE_VERSION
         value: 22.20.0
