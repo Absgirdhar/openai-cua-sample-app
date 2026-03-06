@@ -1,0 +1,41 @@
+services:
+  # Backend: Fastify runner with Playwright/Chromium
+  - type: web
+    name: cua-runner
+    runtime: node
+    region: oregon
+    plan: standard
+    buildCommand: corepack enable && pnpm install --frozen-lockfile && pnpm build:render:runner
+    startCommand: pnpm start:render:runner
+    envVars:
+      - key: NODE_VERSION
+        value: 22.20.0
+      - key: OPENAI_API_KEY
+        sync: false
+      - key: PORT
+        value: 4001
+      - key: CUA_DEFAULT_MODEL
+        value: gpt-5.4
+      - key: CUA_RESPONSES_MODE
+        value: auto
+
+  # Frontend: Next.js operator console
+  - type: web
+    name: cua-web
+    runtime: node
+    region: oregon
+    plan: starter
+    buildCommand: corepack enable && pnpm install --frozen-lockfile && pnpm build:render:web
+    startCommand: pnpm start:render:web
+    envVars:
+      - key: NODE_VERSION
+        value: 22.20.0
+      - key: RUNNER_BASE_URL
+        fromService:
+          name: cua-runner
+          type: web
+          envVarKey: RENDER_EXTERNAL_URL
+      - key: NEXT_PUBLIC_CUA_DEFAULT_MODEL
+        value: gpt-5.4
+      - key: NEXT_PUBLIC_CUA_DEFAULT_MAX_RESPONSE_TURNS
+        value: "24"
