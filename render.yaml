@@ -5,8 +5,16 @@ services:
     runtime: node
     region: oregon
     plan: free
-    buildCommand: corepack enable && pnpm install --frozen-lockfile && pnpm build:render:runner
-    startCommand: pnpm start:render:runner
+    buildCommand: >-
+      corepack enable &&
+      pnpm install --frozen-lockfile &&
+      pnpm --filter @cua-sample/replay-schema build &&
+      pnpm --filter @cua-sample/scenario-kit build &&
+      pnpm --filter @cua-sample/browser-runtime build &&
+      pnpm --filter @cua-sample/runner-core build &&
+      pnpm --filter @cua-sample/runner build &&
+      PLAYWRIGHT_BROWSERS_PATH=0 pnpm --filter @cua-sample/runner exec playwright install --with-deps chromium
+    startCommand: HOST=0.0.0.0 PLAYWRIGHT_BROWSERS_PATH=0 pnpm --filter @cua-sample/runner start
     envVars:
       - key: NODE_VERSION
         value: 22.20.0
@@ -25,8 +33,12 @@ services:
     runtime: node
     region: oregon
     plan: free
-    buildCommand: corepack enable && pnpm install --frozen-lockfile && pnpm build:render:web
-    startCommand: pnpm start:render:web
+    buildCommand: >-
+      corepack enable &&
+      pnpm install --frozen-lockfile &&
+      pnpm --filter @cua-sample/replay-schema build &&
+      pnpm --filter @cua-sample/demo-web build
+    startCommand: pnpm --filter @cua-sample/demo-web start
     envVars:
       - key: NODE_VERSION
         value: 22.20.0
