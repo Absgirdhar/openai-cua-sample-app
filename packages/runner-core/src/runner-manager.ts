@@ -1,10 +1,8 @@
 import {
   appendFile,
-  cp,
   mkdir,
   readdir,
   readFile,
-  rm,
   writeFile,
 } from "node:fs/promises";
 import { basename, dirname, join, resolve } from "node:path";
@@ -17,7 +15,6 @@ import {
   runDetailSchema,
   runEventSchema,
   runRecordSchema,
-  scenarioWorkspaceStateSchema,
   startRunRequestSchema,
   type BrowserScreenshotArtifact,
   type RunDetail,
@@ -26,10 +23,8 @@ import {
   type RunEventType,
   type RunOutcome,
   type RunRecord,
-  type ScenarioWorkspaceState,
   type StartRunRequest,
 } from "@cua-sample/replay-schema";
-import { getScenarioById } from "@cua-sample/scenario-kit";
 
 import { createDefaultRunExecutor } from "./executor-registry.js";
 import { RunnerCoreError } from "./errors.js";
@@ -64,7 +59,7 @@ type ReplayBundle = {
   browser?: RunDetail["browser"];
   events: RunEvent[];
   run: RunRecord;
-  scenario: RunDetail["scenario"];
+  scenario?: RunDetail["scenario"];
   version: 1;
 };
 
@@ -83,7 +78,6 @@ export class RunnerManager {
   private readonly idGenerator: () => string;
   private readonly now: () => Date;
   private readonly runContexts = new Map<string, InternalRunContext>();
-  private readonly scenarioWorkspaceStates = new Map<string, ScenarioWorkspaceState>();
   private readonly stepDelayMs: number;
 
   constructor(options: RunnerManagerOptions) {
@@ -96,15 +90,6 @@ export class RunnerManager {
 
   async startRun(input: StartRunRequest): Promise<RunDetail> {
     const request = startRunRequestSchema.parse(input);
-    const scenario = getScenarioById(request.scenarioId);
-
-    if (!scenario) {
-      throw new RunnerCoreError(`Unknown scenario: ${request.scenarioId}`, {
-        code: "unknown_scenario",
-        hint: "Pick a scenario from /api/scenarios before starting a run.",
-        statusCode: 404,
-      });
-    }
 
     const activeRun = this.getActiveRun();
 
@@ -113,7 +98,7 @@ export class RunnerManager {
         `Run ${activeRun.detail.run.id} is already active. Stop it before starting another run.`,
         {
           code: "run_already_active",
-          hint: "Stop the active run before starting another scenario.",
+          hint: "Stop the active run before starting another.",
           statusCode: 409,
         },
       );
@@ -125,19 +110,20 @@ export class RunnerManager {
     const runRecord = runRecordSchema.parse({
       browserMode: request.browserMode ?? "headless",
       id: runId,
-      labId: scenario.labId,
+      labId: "open-web",
+      url: request.url,
       maxResponseTurns: request.maxResponseTurns ?? defaultMaxResponseTurns,
       mode: request.mode,
       model: request.model ?? defaultRunModel,
       prompt: request.prompt,
-      scenarioId: scenario.id,
+      scenarioId: "open-web",
       startedAt,
       status: "running",
-      verificationEnabled: request.verificationEnabled ?? false,
+      verificationEnabled: false,
     });
 
     await this.ensureBaseDirectories();
-    await this.prepareRunWorkspace(scenario.workspaceTemplatePath, workspacePath);
+    await mkdir(workspacePath, { recursive: true });
 
     const detail = runDetailSchema.parse({
       browser: undefined,
@@ -145,7 +131,7 @@ export class RunnerManager {
       events: [],
       replayUrl: `/api/runs/${runId}/replay`,
       run: runRecord,
-      scenario,
+      scenario: undefined,
       workspacePath,
     });
 
@@ -162,7 +148,7 @@ export class RunnerManager {
     await this.persistContext(context);
 
     await this.emitEvent(context, {
-      detail: `${scenario.title} · ${request.mode} · ${request.browserMode ?? "headless"} · ${runRecord.maxResponseTurns ?? defaultMaxResponseTurns} turns`,
+      detail: `${request.url} · ${request.mode} · ${request.browserMode ?? "headless"} · ${runRecord.maxResponseTurns ?? defaultMaxResponseTurns} turns`,
       level: "ok",
       message: `Run ${runId} started.`,
       type: "run_started",
@@ -263,54 +249,6 @@ export class RunnerManager {
     this.activeRunIds.delete(runId);
 
     return structuredClone(context.detail);
-  }
-
-  async resetScenario(scenarioId: string): Promise<ScenarioWorkspaceState> {
-    const scenario = getScenarioById(scenarioId);
-
-    if (!scenario) {
-      throw new RunnerCoreError(`Unknown scenario: ${scenarioId}`, {
-        code: "unknown_scenario",
-        hint: "Pick a scenario from /api/scenarios before resetting a workspace.",
-        statusCode: 404,
-      });
-    }
-
-    let cancelledRunId: string | undefined;
-
-    for (const activeRunId of this.activeRunIds) {
-      const activeRun = this.runContexts.get(activeRunId);
-
-      if (!activeRun || activeRun.detail.run.scenarioId !== scenarioId) {
-        continue;
-      }
-
-      const stopped = await this.stopRun(activeRunId, "Scenario reset requested.");
-      cancelledRunId = stopped.run.id;
-      break;
-    }
-
-    const workspacePath = this.getScenarioWorkspacePath(scenarioId);
-
-    await rm(workspacePath, { force: true, recursive: true });
-    await this.prepareRunWorkspace(scenario.workspaceTemplatePath, workspacePath);
-
-    const state = scenarioWorkspaceStateSchema.parse({
-      cancelledRunId,
-      resetAt: this.now().toISOString(),
-      scenarioId,
-      workspacePath,
-    });
-
-    this.scenarioWorkspaceStates.set(scenarioId, state);
-
-    await writeFile(
-      join(workspacePath, ".workspace-state.json"),
-      JSON.stringify(state, null, 2),
-      "utf8",
-    );
-
-    return structuredClone(state);
   }
 
   async waitForRunStatus(
@@ -578,14 +516,9 @@ export class RunnerManager {
     return join(this.dataRoot, "workspaces", runId);
   }
 
-  private getScenarioWorkspacePath(scenarioId: string) {
-    return join(this.dataRoot, "scenario-workspaces", scenarioId);
-  }
-
   private async ensureBaseDirectories() {
     await mkdir(join(this.dataRoot, "runs"), { recursive: true });
     await mkdir(join(this.dataRoot, "workspaces"), { recursive: true });
-    await mkdir(join(this.dataRoot, "scenario-workspaces"), { recursive: true });
   }
 
   private async emitEvent(
@@ -659,12 +592,6 @@ export class RunnerManager {
     );
   }
 
-  private async prepareRunWorkspace(templatePath: string, workspacePath: string) {
-    await rm(workspacePath, { force: true, recursive: true });
-    await mkdir(dirname(workspacePath), { recursive: true });
-    await cp(templatePath, workspacePath, { recursive: true });
-  }
-
   private async readArtifactCounts(runId: string) {
     const [patches, commandResults] = await Promise.all([
       readdir(this.getRunPatchesDirectory(runId)).catch(() => []),
@@ -682,18 +609,6 @@ export class RunnerManager {
       const run = runRecordSchema.parse(
         JSON.parse(await readFile(this.getRunRecordPath(runId), "utf8")),
       );
-      const scenario = getScenarioById(run.scenarioId);
-
-      if (!scenario) {
-        throw new RunnerCoreError(
-          `Run ${runId} references unknown scenario ${run.scenarioId}.`,
-          {
-            code: "unknown_scenario",
-            hint: "The run references a scenario that is not registered in this build.",
-            statusCode: 500,
-          },
-        );
-      }
 
       const events = await this.readRunEvents(runId);
       const replayBundle = await this.getReplayBundle(runId);
@@ -704,7 +619,7 @@ export class RunnerManager {
         events,
         replayUrl: `/api/runs/${runId}/replay`,
         run,
-        scenario,
+        scenario: replayBundle.scenario,
         workspacePath: replayBundle.artifacts.workspacePath,
       });
     } catch (error) {

@@ -1,9 +1,9 @@
 import { z } from "zod";
 
-export const labIdSchema = z.enum(["kanban", "paint", "booking"]);
+export const labIdSchema = z.enum(["kanban", "paint", "booking", "open-web"]);
 export type LabId = z.infer<typeof labIdSchema>;
 
-export const categorySchema = z.enum(["productivity", "creativity", "commerce"]);
+export const categorySchema = z.enum(["productivity", "creativity", "commerce", "general"]);
 export type ScenarioCategory = z.infer<typeof categorySchema>;
 
 export const executionModeSchema = z.enum(["code", "native"]);
@@ -121,6 +121,7 @@ export const runRecordSchema = z.object({
   id: z.string().min(1),
   scenarioId: z.string().min(1),
   labId: labIdSchema,
+  url: z.string().url().optional(),
   mode: executionModeSchema,
   browserMode: browserModeSchema,
   verificationEnabled: z.boolean().optional(),
@@ -166,10 +167,9 @@ export const browserStateSchema = z.object({
 export type BrowserState = z.infer<typeof browserStateSchema>;
 
 export const startRunRequestSchema = z.object({
-  scenarioId: z.string().min(1),
+  url: z.string().url(),
   mode: executionModeSchema,
   browserMode: browserModeSchema.optional(),
-  verificationEnabled: z.boolean().optional(),
   maxResponseTurns: responseTurnBudgetSchema.optional(),
   prompt: z.string().min(1),
   model: z.string().min(1).optional(),
@@ -186,7 +186,7 @@ export type StartRunResponse = z.infer<typeof startRunResponseSchema>;
 
 export const runDetailSchema = z.object({
   run: runRecordSchema,
-  scenario: scenarioManifestSchema,
+  scenario: scenarioManifestSchema.optional(),
   workspacePath: z.string().min(1),
   eventStreamUrl: z.string().min(1),
   replayUrl: z.string().min(1),
@@ -194,16 +194,6 @@ export const runDetailSchema = z.object({
   events: z.array(runEventSchema),
 });
 export type RunDetail = z.infer<typeof runDetailSchema>;
-
-export const scenarioWorkspaceStateSchema = z.object({
-  scenarioId: z.string().min(1),
-  workspacePath: z.string().min(1),
-  resetAt: z.string().datetime(),
-  cancelledRunId: z.string().min(1).optional(),
-});
-export type ScenarioWorkspaceState = z.infer<typeof scenarioWorkspaceStateSchema>;
-
-export const scenariosResponseSchema = z.array(scenarioManifestSchema);
 
 export const runnerErrorResponseSchema = z.object({
   code: z.string().min(1),

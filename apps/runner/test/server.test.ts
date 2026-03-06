@@ -7,8 +7,6 @@ import { describe, expect, it } from "vitest";
 import {
   runDetailSchema,
   runnerErrorResponseSchema,
-  scenarioWorkspaceStateSchema,
-  scenariosResponseSchema,
   startRunResponseSchema,
 } from "@cua-sample/replay-schema";
 
@@ -34,7 +32,7 @@ describe("runner server", () => {
     }
   });
 
-  it("starts, retrieves, stops, and resets scenario workspaces", async () => {
+  it("starts, retrieves, and stops a run", async () => {
     const dataRoot = await mkdtemp(join(tmpdir(), "cua-sample-runner-server-"));
     const app = createServer({
       dataRoot,
@@ -48,14 +46,8 @@ describe("runner server", () => {
           browserMode: "headless",
           maxResponseTurns: 17,
           mode: "code",
-          prompt: [
-            "Reorganize the board to match this requested final board state exactly.",
-            "",
-            "backlog: Refresh workspace docs",
-            "in_progress: Close nav bug triage -> Finalize analytics spec",
-            "done: Circulate launch brief -> Audit replay artifacts -> Polish stage tooltips",
-          ].join("\n"),
-          scenarioId: "kanban-reprioritize-sprint",
+          prompt: "Click the first link on the page.",
+          url: "https://example.com",
         },
         url: "/api/runs",
       });
@@ -75,6 +67,7 @@ describe("runner server", () => {
       expect(detail.run.maxResponseTurns).toBe(17);
       expect(detail.run.status).toBe("running");
       expect(detail.run.verificationEnabled).toBe(false);
+      expect(detail.run.url).toBe("https://example.com");
 
       const stopResponse = await app.inject({
         method: "POST",
@@ -85,32 +78,6 @@ describe("runner server", () => {
       expect(runDetailSchema.parse(stopResponse.json()).run.status).toBe(
         "cancelled",
       );
-
-      const resetResponse = await app.inject({
-        method: "POST",
-        url: "/api/scenarios/kanban-reprioritize-sprint/reset",
-      });
-
-      expect(resetResponse.statusCode).toBe(200);
-      expect(
-        scenarioWorkspaceStateSchema.parse(resetResponse.json()).scenarioId,
-      ).toBe("kanban-reprioritize-sprint");
-    } finally {
-      await app.close();
-    }
-  });
-
-  it("serves the validated scenario registry", async () => {
-    const app = createServer();
-
-    try {
-      const response = await app.inject({
-        method: "GET",
-        url: "/api/scenarios",
-      });
-
-      expect(response.statusCode).toBe(200);
-      expect(scenariosResponseSchema.parse(response.json())).toHaveLength(3);
     } finally {
       await app.close();
     }
@@ -123,7 +90,7 @@ describe("runner server", () => {
       const response = await app.inject({
         method: "POST",
         payload: {
-          scenarioId: "",
+          url: "",
         },
         url: "/api/runs",
       });

@@ -15,7 +15,6 @@
   "dependencies": {
     "@cua-sample/replay-schema": "workspace:*",
     "@cua-sample/runner-core": "workspace:*",
-    "@cua-sample/scenario-kit": "workspace:*",
     "fastify": "^4.29.0",
     "playwright": "^1.55.0"
   }

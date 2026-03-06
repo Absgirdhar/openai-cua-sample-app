@@ -5,7 +5,6 @@ import {
   type RunDetail,
   type RunEvent,
   type RunEventLevel,
-  type ScenarioManifest,
 } from "@cua-sample/replay-schema";
 
 import type {
@@ -27,7 +26,7 @@ export const browserHelpText =
 export const turnBudgetHelpText =
   "Caps how many model turns the runner can use before stopping the run. Higher budgets allow longer plans but take more time.";
 export const verificationHelpText =
-  "Runs the scenario's built-in checks after the model stops. Leave this off to treat the model's completed action loop as the success condition.";
+  "Runs built-in checks after the model stops. Leave this off to treat the model's completed action loop as the success condition.";
 export const runnerUnavailableHint =
   "Start `pnpm dev` or `OPENAI_API_KEY=... pnpm dev:runner`, then refresh the page.";
 
@@ -117,16 +116,6 @@ export function deriveRunFailureIssue(runDetail: RunDetail | null) {
   const hint = notes.find((note) => note.startsWith("Hint: "))?.slice(6);
 
   return createRunnerIssue(code ?? "run_failed", message, hint);
-}
-
-export function scenarioTargetDisplay(scenario: ScenarioManifest | null) {
-  if (!scenario) {
-    return "Runner unavailable";
-  }
-
-  return scenario.startTarget.kind === "remote_url"
-    ? scenario.startTarget.url
-    : scenario.startTarget.path;
 }
 
 export function createManualLog(

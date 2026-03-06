@@ -1,11 +1,5 @@
 import {
-  scenariosResponseSchema,
-  type ScenarioManifest,
-} from "@cua-sample/replay-schema";
-
-import {
   createRunnerUnavailableIssue,
-  parseRunnerIssue,
 } from "./ui/operator-console/helpers";
 import { OperatorConsole } from "./ui/operator-console";
 import type { RunnerIssue } from "./ui/operator-console/types";
@@ -24,43 +18,33 @@ function isRunnerIssue(value: unknown): value is RunnerIssue {
   );
 }
 
-async function loadScenarios() {
+async function checkRunnerHealth() {
   try {
-    const response = await fetch(`${runnerBaseUrl}/api/scenarios`, {
+    const response = await fetch(`${runnerBaseUrl}/health`, {
       cache: "no-store",
     });
 
     if (!response.ok) {
-      const payload = await response.json().catch(() => null);
-
-      throw parseRunnerIssue(payload) ??
-        createRunnerUnavailableIssue(`Runner returned ${response.status}.`);
+      return createRunnerUnavailableIssue(`Runner returned ${response.status}.`);
     }
 
-    return {
-      runnerIssue: null,
-      scenarios: scenariosResponseSchema.parse(await response.json()),
-    };
+    return null;
   } catch (error) {
-    return {
-      runnerIssue: isRunnerIssue(error)
-        ? error
-        : createRunnerUnavailableIssue(
-            error instanceof Error ? error.message : undefined,
-          ),
-      scenarios: [] as ScenarioManifest[],
-    };
+    return isRunnerIssue(error)
+      ? error
+      : createRunnerUnavailableIssue(
+          error instanceof Error ? error.message : undefined,
+        );
   }
 }
 
 export default async function HomePage() {
-  const { runnerIssue, scenarios } = await loadScenarios();
+  const runnerIssue = await checkRunnerHealth();
 
   return (
     <OperatorConsole
       initialRunnerIssue={runnerIssue}
       runnerBaseUrl={runnerBaseUrl}
-      scenarios={scenarios}
     />
   );
 }

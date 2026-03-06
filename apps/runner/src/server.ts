@@ -7,8 +7,6 @@ import Fastify, { type FastifyReply } from "fastify";
 import {
   runDetailSchema,
   runnerErrorResponseSchema,
-  scenarioWorkspaceStateSchema,
-  scenariosResponseSchema,
   startRunRequestSchema,
   startRunResponseSchema,
   type RunEvent,
@@ -18,7 +16,6 @@ import {
   RunnerManager,
   toRunnerErrorResponse,
 } from "@cua-sample/runner-core";
-import { listScenarios } from "@cua-sample/scenario-kit";
 
 type CreateServerOptions = {
   dataRoot?: string;
@@ -89,18 +86,6 @@ export function createServer(options: CreateServerOptions = {}) {
     status: "ok",
     service: "runner",
   }));
-
-  app.get("/api/scenarios", async () =>
-    scenariosResponseSchema.parse(listScenarios()),
-  );
-
-  app.post("/api/scenarios/:id/reset", async (request) =>
-    scenarioWorkspaceStateSchema.parse(
-      await manager.resetScenario(
-        (request.params as { id: string }).id,
-      ),
-    ),
-  );
 
   app.post("/api/runs", async (request, reply) => {
     const input = startRunRequestSchema.parse(request.body);

@@ -17,7 +17,6 @@
   "dependencies": {
     "@cua-sample/browser-runtime": "workspace:*",
     "@cua-sample/replay-schema": "workspace:*",
-    "@cua-sample/scenario-kit": "workspace:*",
     "openai": "^6.25.0"
   }
 }

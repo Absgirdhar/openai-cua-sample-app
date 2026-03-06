@@ -4,14 +4,12 @@ import type {
   BrowserMode,
   ExecutionMode,
   ResponseTurnBudget,
-  ScenarioManifest,
 } from "@cua-sample/replay-schema";
 
 import {
   browserHelpText,
   engineHelpText,
   turnBudgetHelpText,
-  verificationHelpText,
 } from "./helpers";
 import type { ActionButtonsProps } from "./types";
 
@@ -24,13 +22,10 @@ type RunControlsProps = ActionButtonsProps & {
   onMaxResponseTurnsChange: (value: ResponseTurnBudget) => void;
   onModeChange: (value: ExecutionMode) => void;
   onPromptChange: (value: string) => void;
-  onScenarioChange: (value: string) => void;
-  onVerificationEnabledChange: (value: boolean) => void;
+  onUrlChange: (value: string) => void;
   prompt: string;
-  scenarios: ScenarioManifest[];
-  selectedScenarioId: string;
   showActionButtons?: boolean;
-  verificationEnabled: boolean;
+  url: string;
 };
 
 type InfoPopoverProps = {
@@ -89,11 +84,9 @@ function SegmentControl<T extends string>({
 }
 
 export function RunActionButtons({
-  onResetWorkspace,
   onStartRun,
   onStopRun,
   pendingAction,
-  resetDisabled,
   startDisabled,
   stopDisabled,
 }: ActionButtonsProps) {
@@ -115,14 +108,6 @@ export function RunActionButtons({
       >
         {pendingAction === "stop" ? "Stopping..." : "Stop"}
       </button>
-      <button
-        className="secondaryButton"
-        disabled={resetDisabled}
-        onClick={() => void onResetWorkspace()}
-        type="button"
-      >
-        {pendingAction === "reset" ? "Resetting..." : "Reset Workspace"}
-      </button>
     </div>
   );
 }
@@ -136,13 +121,10 @@ export function RunControls({
   onMaxResponseTurnsChange,
   onModeChange,
   onPromptChange,
-  onScenarioChange,
-  onVerificationEnabledChange,
+  onUrlChange,
   prompt,
-  scenarios,
-  selectedScenarioId,
   showActionButtons = true,
-  verificationEnabled,
+  url,
   ...actionButtons
 }: RunControlsProps) {
   return (
@@ -153,28 +135,24 @@ export function RunControls({
 
       <div className="controlsGrid">
         <div className="railField scenarioField">
-          <label htmlFor="scenario-select">Scenario</label>
-          <select
+          <label htmlFor="url-input">Target URL</label>
+          <input
             disabled={controlsLocked}
-            id="scenario-select"
-            onChange={(event) => onScenarioChange(event.target.value)}
-            value={selectedScenarioId}
-          >
-            {scenarios.map((scenario) => (
-              <option key={scenario.id} value={scenario.id}>
-                {scenario.title}
-              </option>
-            ))}
-          </select>
+            id="url-input"
+            onChange={(event) => onUrlChange(event.target.value)}
+            placeholder="https://example.com"
+            type="url"
+            value={url}
+          />
         </div>
 
         <div className="railField promptField">
-          <label htmlFor="run-prompt">Run prompt</label>
+          <label htmlFor="run-prompt">Instructions</label>
           <textarea
             disabled={controlsLocked}
             id="run-prompt"
             onChange={(event) => onPromptChange(event.target.value)}
-            placeholder="Describe the operator task for GPT-5.4."
+            placeholder="Tell the agent what to do on this website..."
             rows={5}
             value={prompt}
           />
@@ -186,7 +164,7 @@ export function RunControls({
           <span className="advancedSummaryCopy">
             <span className="advancedLabel">Advanced settings</span>
             <span className="advancedHint">
-              Engine, browser, verification, and turn budget
+              Engine, browser, and turn budget
             </span>
           </span>
         </summary>
@@ -260,26 +238,6 @@ export function RunControls({
               />
               <span className="budgetValue">{maxResponseTurns} turns</span>
             </div>
-          </div>
-
-          <div className="railField">
-            <div className="fieldLabel">
-              <span>Verification</span>
-              <InfoPopover
-                id="verification-help-popover"
-                label="Verification"
-                text={verificationHelpText}
-              />
-            </div>
-            <label className="feedToggle">
-              <input
-                checked={verificationEnabled}
-                disabled={controlsLocked}
-                onChange={(event) => onVerificationEnabledChange(event.target.checked)}
-                type="checkbox"
-              />
-              Run verification checks
-            </label>
           </div>
         </div>
       </details>

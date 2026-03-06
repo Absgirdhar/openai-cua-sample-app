@@ -1,13 +1,11 @@
 import type {
   ResponseTurnBudget,
   RunEventLevel,
-  ScenarioManifest,
 } from "@cua-sample/replay-schema";
 
 export type OperatorConsoleProps = {
   initialRunnerIssue: RunnerIssue | null;
   runnerBaseUrl: string;
-  scenarios: ScenarioManifest[];
 };
 
 export type LogEntry = {
@@ -41,7 +39,7 @@ export type ActivityItem = {
   time: string;
 };
 
-export type PendingAction = "reset" | "start" | "stop" | null;
+export type PendingAction = "start" | "stop" | null;
 
 export type RunnerIssue = {
   code: string;
@@ -51,11 +49,9 @@ export type RunnerIssue = {
 };
 
 export type ActionButtonsProps = {
-  onResetWorkspace: () => Promise<void>;
   onStartRun: () => Promise<void>;
   onStopRun: () => Promise<void>;
   pendingAction: PendingAction;
-  resetDisabled: boolean;
   startDisabled: boolean;
   stopDisabled: boolean;
 };

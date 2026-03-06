@@ -16,6 +16,5 @@ export default defineConfig({
   noExternal: [
     "@cua-sample/replay-schema",
     "@cua-sample/runner-core",
-    "@cua-sample/scenario-kit",
   ],
 });

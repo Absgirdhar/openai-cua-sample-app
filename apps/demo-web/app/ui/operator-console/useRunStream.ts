@@ -5,15 +5,12 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import {
   runDetailSchema,
   runEventSchema,
-  scenarioWorkspaceStateSchema,
   startRunResponseSchema,
   type BrowserMode,
   type ExecutionMode,
   type ResponseTurnBudget,
   type RunDetail,
   type RunEvent,
-  type ScenarioManifest,
-  type ScenarioWorkspaceState,
 } from "@cua-sample/replay-schema";
 
 import {
@@ -49,7 +46,6 @@ class RunnerApiError extends Error {
 type UseRunStreamOptions = {
   initialRunnerIssue: RunnerIssue | null;
   runnerBaseUrl: string;
-  scenarios: ScenarioManifest[];
 };
 
 function createFallbackIssue(message: string, hint?: string) {
@@ -75,26 +71,17 @@ function toRunnerIssue(
 export function useRunStream({
   initialRunnerIssue,
   runnerBaseUrl,
-  scenarios,
 }: UseRunStreamOptions) {
-  const initialScenario = scenarios[0] ?? null;
-  const [selectedScenarioId, setSelectedScenarioId] = useState(
-    initialScenario?.id ?? "",
-  );
-  const [mode, setMode] = useState<ExecutionMode>(
-    initialScenario?.defaultMode ?? "code",
-  );
+  const [url, setUrl] = useState("");
+  const [mode, setMode] = useState<ExecutionMode>("native");
   const [browserMode, setBrowserMode] = useState<BrowserMode>("headless");
-  const [verificationEnabled, setVerificationEnabled] = useState(false);
   const [maxResponseTurns, setMaxResponseTurns] =
     useState<ResponseTurnBudget>(defaultMaxResponseTurns);
-  const [prompt, setPrompt] = useState(initialScenario?.defaultPrompt ?? "");
+  const [prompt, setPrompt] = useState("");
   const [streamLogs, setStreamLogs] = useState(true);
   const [activeRun, setActiveRun] = useState<RunDetail | null>(null);
   const [runEvents, setRunEvents] = useState<RunEvent[]>([]);
   const [pendingAction, setPendingAction] = useState<PendingAction>(null);
-  const [workspaceState, setWorkspaceState] =
-    useState<ScenarioWorkspaceState | null>(null);
   const [manualLogs, setManualLogs] = useState<LogEntry[]>([]);
   const [manualTranscript, setManualTranscript] = useState<TranscriptEntry[]>([]);
   const [selectedScreenshotId, setSelectedScreenshotId] = useState<string | null>(null);
@@ -105,22 +92,12 @@ export function useRunStream({
   const eventSourceRef = useRef<EventSource | null>(null);
   const activityFeedRef = useRef<HTMLDivElement | null>(null);
 
-  const selectedScenario =
-    scenarios.find((scenario) => scenario.id === selectedScenarioId) ??
-    initialScenario;
-  const runnerOnline = !initialRunnerIssue && scenarios.length > 0;
-  const selectedRun =
-    activeRun && selectedScenario && activeRun.run.scenarioId === selectedScenario.id
-      ? activeRun
-      : null;
+  const runnerOnline = !initialRunnerIssue;
+  const selectedRun = activeRun;
   const selectedBrowser = selectedRun?.browser ?? null;
   const screenshots = selectedBrowser?.screenshots ?? emptyScreenshots;
   const latestScreenshot = screenshots.at(-1) ?? null;
   const controlsLocked = selectedRun?.run.status === "running";
-  const matchingWorkspaceState =
-    workspaceState && workspaceState.scenarioId === selectedScenario?.id
-      ? workspaceState
-      : null;
   const runIssue = deriveRunFailureIssue(selectedRun);
   const currentIssue = runIssue ?? actionIssue ?? initialRunnerIssue;
 
@@ -348,39 +325,12 @@ export function useRunStream({
     };
   }, [fetchRunDetail, refreshRunDetail, runnerBaseUrl, selectedRun, streamLogs]);
 
-  const handleScenarioChange = (scenarioId: string) => {
-    if (controlsLocked) {
-      return;
-    }
-
-    const nextScenario =
-      scenarios.find((scenario) => scenario.id === scenarioId) ?? null;
-
-    setSelectedScenarioId(scenarioId);
-    setManualLogs([]);
-    setManualTranscript([]);
-    setWorkspaceState(null);
-    setActionIssue(null);
-
-    if (!nextScenario) {
-      return;
-    }
-
-    if (!selectedRun || selectedRun.run.status !== "running") {
-      setActiveRun(null);
-      setRunEvents([]);
-    }
-
-    setMode(nextScenario.defaultMode);
-    setPrompt(nextScenario.defaultPrompt);
-  };
-
   const handleOpenReplay = () => {
     if (!selectedRun) {
       appendManualLog(
         createManualLog(
           "replay.unavailable",
-          "No run has been started for the selected scenario yet.",
+          "No run has been started yet.",
           "warn",
         ),
       );
@@ -391,7 +341,7 @@ export function useRunStream({
   };
 
   const handleStartRun = async () => {
-    if (!runnerOnline || !selectedScenario || prompt.trim().length === 0) {
+    if (!runnerOnline || url.trim().length === 0 || prompt.trim().length === 0) {
       return;
     }
 
@@ -413,8 +363,7 @@ export function useRunStream({
             mode,
             model: defaultRunModel,
             prompt,
-            scenarioId: selectedScenario.id,
-            verificationEnabled,
+            url: url.trim(),
           }),
           headers: {
             "Content-Type": "application/json",
@@ -423,26 +372,25 @@ export function useRunStream({
         },
         createFallbackIssue(
           "Run start failed.",
-          "Check the runner logs and confirm the scenario request is valid.",
+          "Check the runner logs and confirm the request is valid.",
         ),
       );
       const detail = await fetchRunDetail(started.runId);
 
       setActiveRun(detail);
       setRunEvents(detail.events);
-      setWorkspaceState(null);
       appendManualTranscript(
         createManualTranscript(
           "control",
           "operator",
-          `Run ${started.runId} started for ${selectedScenario.title}.`,
+          `Run ${started.runId} started for ${url.trim()}.`,
         ),
       );
     } catch (error) {
       const issue = toRunnerIssue(
         error,
         "Failed to start run.",
-        "Check the runner and scenario configuration, then try again.",
+        "Check the runner configuration, then try again.",
       );
 
       setActionIssue(issue);
@@ -501,72 +449,6 @@ export function useRunStream({
       setActionIssue(issue);
       appendManualLog(
         createManualLog("run.stop_failed", formatRunnerIssueMessage(issue), "error"),
-      );
-    } finally {
-      closeEventStream();
-      setPendingAction(null);
-    }
-  };
-
-  const handleResetWorkspace = async () => {
-    if (!runnerOnline || !selectedScenario) {
-      return;
-    }
-
-    setPendingAction("reset");
-
-    try {
-      const state = await requestJson(
-        `${runnerBaseUrl}/api/scenarios/${selectedScenario.id}/reset`,
-        scenarioWorkspaceStateSchema,
-        {
-          method: "POST",
-        },
-        createFallbackIssue(
-          "Workspace reset failed.",
-          "Check the runner logs and try the reset again.",
-        ),
-      );
-
-      setWorkspaceState(state);
-      setActionIssue(null);
-      appendManualLog(
-        createManualLog(
-          "scenario.workspace.reset",
-          `Workspace reset at ${state.workspacePath}`,
-          "ok",
-        ),
-      );
-      appendManualTranscript(
-        createManualTranscript(
-          "control",
-          "runner",
-          `Scenario workspace reset to template baseline at ${state.workspacePath}.`,
-        ),
-      );
-
-      if (state.cancelledRunId) {
-        const cancelledDetail = await fetchRunDetail(state.cancelledRunId);
-        setActiveRun(cancelledDetail);
-        setRunEvents(cancelledDetail.events);
-      } else if (!selectedRun || selectedRun.run.status !== "running") {
-        setActiveRun(null);
-        setRunEvents([]);
-      }
-    } catch (error) {
-      const issue = toRunnerIssue(
-        error,
-        "Failed to reset workspace.",
-        "Check the runner logs and try the reset again.",
-      );
-
-      setActionIssue(issue);
-      appendManualLog(
-        createManualLog(
-          "scenario.reset_failed",
-          formatRunnerIssueMessage(issue),
-          "error",
-        ),
       );
     } finally {
       closeEventStream();
@@ -657,14 +539,11 @@ export function useRunStream({
     handleJumpToLatestActivity,
     handleJumpToLatestScreenshot,
     handleOpenReplay,
-    handleResetWorkspace,
-    handleScenarioChange,
     handleScrubberChange,
     handleSelectScreenshot,
     handleStartRun,
     handleStopRun,
     latestScreenshot,
-    matchingWorkspaceState,
     maxResponseTurns,
     mode,
     pendingAction,
@@ -673,18 +552,16 @@ export function useRunStream({
     screenshots,
     selectedBrowser,
     selectedRun,
-    selectedScenario,
     selectedScreenshot,
     selectedScreenshotIndex,
-    selectedScenarioId,
     setBrowserMode,
     setMaxResponseTurns,
     setMode,
     setPrompt,
     setStreamLogs,
-    setVerificationEnabled,
+    setUrl,
     streamLogs,
-    verificationEnabled,
+    url,
     viewingLiveFrame,
   };
 }
