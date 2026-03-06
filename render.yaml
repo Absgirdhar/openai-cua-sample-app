@@ -13,7 +13,7 @@ services:
       pnpm --filter @cua-sample/browser-runtime build &&
       pnpm --filter @cua-sample/runner-core build &&
       pnpm --filter @cua-sample/runner build &&
-      PLAYWRIGHT_BROWSERS_PATH=0 pnpm --filter @cua-sample/runner exec playwright install --with-deps chromium
+      PLAYWRIGHT_BROWSERS_PATH=0 pnpm --filter @cua-sample/runner exec playwright install chromium
     startCommand: HOST=0.0.0.0 PLAYWRIGHT_BROWSERS_PATH=0 pnpm --filter @cua-sample/runner start
     envVars:
       - key: NODE_VERSION
